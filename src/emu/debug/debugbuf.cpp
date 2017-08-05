@@ -116,7 +116,6 @@ void debug_disasm_buffer::debug_data_buffer::fill(offs_t lstart, offs_t size) co
 			// Old is wrapped, new is unwrapped.  Reduce the amount of "useless" data.
 			offs_t gap_post = m_lend >= lstart ? 0 : lstart - m_lend;
 			offs_t gap_pre  = m_lstart <= lend ? 0 : m_lstart - lend;
-			fprintf(stderr, "post=%x pre=%x\n", gap_post, gap_pre);
 			if(gap_post < gap_pre) {
 				// extend the old one end until it reaches the new one
 				n_lstart = m_lstart;
@@ -181,7 +180,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 	int alignment = m_intf.opcode_alignment();
 	endianness_t endian = space->endianness();
 
-	m_pc_mask = space->addrmask();
+	m_pc_mask = space->logaddrmask();
 
 	if(m_intf.disasm_interface_flags() & device_disasm_interface::DASMINTF_PAGED)
 		m_page_mask = (1 << m_intf.disasm_page_address_bits()) - 1;
@@ -207,7 +206,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u16 *dest = get_ptr<u16>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = m_intf.disasm_pc_linear_to_real(lpc);
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_word(tpc << 1);
@@ -220,7 +219,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u8 *dest = get_ptr<u8>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = m_intf.disasm_pc_linear_to_real(lpc);
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_byte(tpc);
@@ -237,7 +236,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u64 *dest = get_ptr<u64>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = lpc;
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_qword(tpc << 3);
@@ -251,7 +250,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u32 *dest = get_ptr<u32>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = lpc;
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_dword(tpc << 2);
@@ -265,7 +264,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u16 *dest = get_ptr<u16>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = lpc;
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_word(tpc << 1);
@@ -279,7 +278,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u8 *dest = get_ptr<u8>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = lpc;
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_byte(tpc);
@@ -293,7 +292,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					auto dis = m_space->machine().disable_side_effect();
 					u16 *dest = reinterpret_cast<u16 *>(&m_buffer[0]) + ((lstart - m_lstart) >> 4);
-					for(offs_t lpc = lstart; lpc != lend; lpc++) {
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask) {
 						offs_t tpc = lpc;
 						if (m_space->device().memory().translate(m_space->spacenum(), TRANSLATE_FETCH_DEBUG, tpc))
 							*dest++ = m_space->read_word(tpc >> 3);
@@ -313,7 +312,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 		case -3: // bus granularity 64, endianness irrelevant
 			m_do_fill = [this](offs_t lstart, offs_t lend) {
 				u64 *dest = get_ptr<u64>(lstart);
-				for(offs_t lpc = lstart; lpc != lend; lpc++)
+				for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask)
 					*dest++ = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 			};
 			break;
@@ -323,7 +322,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 			case 1: // bus granularity 32, alignment 32, endianness irrelevant
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					u32 *dest = get_ptr<u32>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++)
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask)
 						*dest++ = m_intf.disasm_decrypt32(m_back->r32(lpc), lpc, m_opcode);
 				};
 				break;
@@ -333,7 +332,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_LITTLE:  // bus granularity 32, alignment 64, little endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u32 *dest = get_ptr<u32>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u64 val = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 							*dest++ = val;
 							*dest++ = val >> 32;
@@ -344,7 +343,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_BIG:  // bus granularity 32, bus width 64, big endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u32 *dest = get_ptr<u32>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u64 val = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 							*dest++ = val >> 32;
 							*dest++ = val;
@@ -361,7 +360,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 			case 1: // bus granularity 16, alignment 16, endianness irrelevant
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					u16 *dest = get_ptr<u16>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++)
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask)
 						*dest++ = m_intf.disasm_decrypt16(m_back->r16(lpc), lpc, m_opcode);
 				};
 				break;
@@ -371,7 +370,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_LITTLE:  // bus granularity 16, alignment 32, little endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u16 *dest = get_ptr<u16>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u32 val = m_intf.disasm_decrypt32(m_back->r32(lpc), lpc, m_opcode);
 							*dest++ = val;
 							*dest++ = val >> 16;
@@ -382,7 +381,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_BIG:  // bus granularity 16, alignment 32, big endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u16 *dest = get_ptr<u16>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u32 val = m_intf.disasm_decrypt32(m_back->r32(lpc), lpc, m_opcode);
 							*dest++ = val >> 16;
 							*dest++ = val;
@@ -397,7 +396,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_LITTLE:  // bus granularity 16, alignment 64, little endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u16 *dest = get_ptr<u16>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 4) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 4) & m_pc_mask) {
 							u64 val = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 							*dest++ = val;
 							*dest++ = val >> 16;
@@ -410,7 +409,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_BIG:  // bus granularity 16, alignment 64, big endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u16 *dest = get_ptr<u16>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 4) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 4) & m_pc_mask) {
 							u64 val = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 							*dest++ = val >> 48;
 							*dest++ = val >> 32;
@@ -429,7 +428,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 			case 1: // bus granularity 8, alignment 8, endianness irrelevant
 				m_do_fill = [this](offs_t lstart, offs_t lend) {
 					u8 *dest = get_ptr<u8>(lstart);
-					for(offs_t lpc = lstart; lpc != lend; lpc++)
+					for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask)
 						*dest++ = m_intf.disasm_decrypt8(m_back->r8(lpc), lpc, m_opcode);
 				};
 				break;
@@ -439,7 +438,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_LITTLE:  // bus granularity 8, alignment 16, little endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u8 *dest = get_ptr<u8>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u16 val = m_intf.disasm_decrypt16(m_back->r16(lpc), lpc, m_opcode);
 							*dest++ = val;
 							*dest++ = val >>  8;
@@ -450,7 +449,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_BIG:  // bus granularity 16, alignment 16, big endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u8 *dest = get_ptr<u8>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u16 val = m_intf.disasm_decrypt16(m_back->r16(lpc), lpc, m_opcode);
 							*dest++ = val >>  8;
 							*dest++ = val;
@@ -465,7 +464,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_LITTLE:  // bus granularity 8, alignment 16, little endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u8 *dest = get_ptr<u8>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 4) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 4) & m_pc_mask) {
 							u32 val = m_intf.disasm_decrypt32(m_back->r32(lpc), lpc, m_opcode);
 							*dest++ = val;
 							*dest++ = val >>  8;
@@ -478,7 +477,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_BIG:  // bus granularity 16, alignment 32, big endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u8 *dest = get_ptr<u8>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 4) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 4) & m_pc_mask) {
 							u32 val = m_intf.disasm_decrypt32(m_back->r32(lpc), lpc, m_opcode);
 							*dest++ = val >> 24;
 							*dest++ = val >> 16;
@@ -496,7 +495,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_LITTLE:  // bus granularity 8, alignment 64, little endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u8 *dest = get_ptr<u8>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 8) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 8) & m_pc_mask) {
 							u64 val = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 							*dest++ = val;
 							*dest++ = val >>  8;
@@ -513,7 +512,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				case ENDIANNESS_BIG:  // bus granularity 8, alignment 64, big endian
 					m_do_fill = [this](offs_t lstart, offs_t lend) {
 						u8 *dest = get_ptr<u8>(lstart);
-						for(offs_t lpc = lstart; lpc != lend; lpc += 2) {
+						for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 2) & m_pc_mask) {
 							u64 val = m_intf.disasm_decrypt64(m_back->r64(lpc), lpc, m_opcode);
 							*dest++ = val >> 56;
 							*dest++ = val >> 48;
@@ -538,7 +537,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 				u16 *dest = reinterpret_cast<u16 *>(&m_buffer[0]) + ((lstart - m_lstart) >> 4);
 				lstart >>= 4;
 				lend >>= 4;
-				for(offs_t lpc = lstart; lpc != lend; lpc++)
+				for(offs_t lpc = lstart; lpc != lend; lpc = (lpc + 1) & m_pc_mask)
 					*dest++ = m_intf.disasm_decrypt16(m_back->r16(lpc), lpc, m_opcode);
 			};
 			break;
@@ -1209,7 +1208,7 @@ debug_disasm_buffer::debug_disasm_buffer(device_t &device) :
 			m_buf_opcodes.set_source(m_mintf->space(AS_PROGRAM));
 	}
 
-	m_pc_mask = m_mintf->space(AS_PROGRAM).addrmask();
+	m_pc_mask = m_mintf->space(AS_PROGRAM).logaddrmask();
 
 	// Next pc computation
 	if(m_flags & device_disasm_interface::DASMINTF_NONLINEAR_PC) {

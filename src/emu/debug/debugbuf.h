@@ -65,15 +65,15 @@ private:
 		mutable std::vector<u8> m_buffer;
 
 		template<typename T> T *get_ptr(offs_t lpc) {
-			return reinterpret_cast<T *>(&m_buffer[0]) + (lpc - m_lstart);
+			return reinterpret_cast<T *>(&m_buffer[0]) + ((lpc - m_lstart) & m_pc_mask);
 		}
 
 		template<typename T> const T *get_ptr(offs_t lpc) const {
-			return reinterpret_cast<const T *>(&m_buffer[0]) + (lpc - m_lstart);
+			return reinterpret_cast<const T *>(&m_buffer[0]) + ((lpc - m_lstart) & m_pc_mask);
 		}
 
 		template<typename T> T get(offs_t lpc) const {
-			return reinterpret_cast<const T *>(&m_buffer[0])[lpc - m_lstart];
+			return reinterpret_cast<const T *>(&m_buffer[0])[(lpc - m_lstart) & m_pc_mask];
 		}
 
 		void setup_methods();
